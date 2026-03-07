@@ -1,6 +1,8 @@
 from rest_framework import serializers
-from apps.accounts.models import User
+from apps.accounts.models import User,Role
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from apps.accounts.services import GoogleAuthService
+
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
     role = serializers.CharField(source='role.name', read_only=True)
@@ -82,4 +84,82 @@ class LoginSerializer(TokenObtainPairSerializer):
        data['message']='Login successful'
        return data
     
+
+class GoogleAuthSerializer(serializers.Serializer):
+    token=serializers.CharField(required=True,write_only=True)
+
+    def validate_token(self,value):
+        try:
+            google_user=GoogleAuthService.verify_google_token(value)
+        except ValueError as e:
+            raise serializers.ValidationError(str(e))
+        self.context['google_user']=google_user
+        return value
+    
+    def create_or_get_user(self):
+        google_user=self.context['google_user']
+        email=google_user['email']
+
+        try:
+            user=User.objects.select_related('role').get(email=email)
+
+            if not user.google_id:
+                user.google_id = google_user['google_id']
+                user.email_verified=True
+                user.save()
+
+            return user,False
+        except User.DoesNotExist:
+            customer_role=Role.objects.get(name=Role.RoleChoices.CUSTOMER)
+
+            user=User.objects.create(
+                email=email,
+                first_name=google_user['first_name'],
+                last_name=google_user['last_name'],
+                email_verified=True,
+                google_id=google_user['google_id'],
+                role=customer_role
+            )
+            return user,True
+        
+
+class VerifyOTPSerializer(serializers.Serializer):
+    email=serializers.EmailField(required=True)
+    otp=serializers.CharField(required=True,max_length=6,min_length=6)
+
+    def validate_email(self,value):
+        return value.lower()
+    
+    def validate_otp(self,value):
+        if not value.isdigit():
+            raise serializers.ValidationError('OTP must be numeric')
+        return value
+
+class ResendOTPSerializer(serializers.Serializer):
+    email=serializers.EmailField(required=True)
+
+    def validate_email(self,value):
+        return value.lower()
+    
+class PasswordResetRequestSerializer(serializers.Serializer):
+    email=serializers.EmailField(required=True)
+
+    def validate_email(self,value):
+        return value.lower()
+    
+class ResetPasswordSerializer(serializers.Serializer):
+    token=serializers.CharField(required=True)
+    new_password=serializers.CharField(required=True)
+    confirm_password=serializers.CharField(required=True)
+
+    def validate(self,attrs):
+        if len(attrs['new_password'])<8:
+            raise serializers.ValidationError({'message':'Password must be at least 8 characters long'})
+        if attrs['new_password']!=attrs['confirm_password']:
+            raise serializers.ValidationError({'message':'Passwords do not match'})
+        
+        return attrs
+     
+
+            
 

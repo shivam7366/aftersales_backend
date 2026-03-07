@@ -7,6 +7,8 @@ from apps.common.models import TimeStampMixin
 # Create your models here.
 
 class CustomUserManager(BaseUserManager):
+    '''Custom user manager that provides methods for creating regular users and superusers with email as the unique identifier.'''
+
     def create_user(self,email,password=None,**extra_fields):
         if not email:
             raise ValueError('Email is required')
@@ -46,6 +48,7 @@ class CustomUserManager(BaseUserManager):
     
 
 class Role(TimeStampMixin):
+    '''Model representing user roles in the system, such as Admin, Customer, and Service Professional.'''
     class RoleChoices(models.TextChoices):
         ADMIN = 'admin','Admin'
         CUSTOMER= 'customer','Customer',
@@ -56,11 +59,15 @@ class Role(TimeStampMixin):
 
 
 class User(AbstractUser,TimeStampMixin):
+
+    '''Custom user model that uses email as the unique identifier and includes additional fields such as phone number, role, and Google ID for authentication.'''
+    
     uuid = models.UUIDField(primary_key=True,default=uuid.uuid4,editable=False)
     email = models.EmailField(unique=True)
     email_verified = models.BooleanField(default=False)
     phone_number = models.CharField(max_length=15,blank=True,null=True,unique=True)
     role=models.ForeignKey(Role,on_delete=models.SET_NULL,null=True,related_name='users')
+    google_id = models.CharField(max_length=255, blank=True, null=True, unique=True)
 
     username = None
 

@@ -28,7 +28,10 @@ environ.Env.read_env(BASE_DIR / ".env")
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-=3c!7pbo50tbay5v&javk$&&mi9n-n+ns4+f++g&!(9%6ox^@c'
+SECRET_KEY = env('SECRET_KEY')
+GOOGLE_CLIENT_ID = env('GOOGLE_CLIENT_ID')
+GOOGLE_CLIENT_SECRET = env('GOOGLE_CLIENTL_SECRET')
+REDIS_URL = env('REDIS_URL',default='redis://127.0.0.1:6379/0')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -46,6 +49,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'apps.accounts',
+    'apps.common',
     'rest_framework',
     'rest_framework_simplejwt.token_blacklist',]
 
@@ -85,6 +89,16 @@ WSGI_APPLICATION = 'config.wsgi.application'
 DATABASES = {
     # 
      "default": env.db()
+}
+
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": REDIS_URL,
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+        }
+    }
 }
 
 
@@ -152,3 +166,4 @@ SIMPLE_JWT = {
     'TOKEN_TYPE_CLAIM': 'token_type',
     'JTI_CLAIM': 'jti',
 }
+
