@@ -18,6 +18,7 @@ from apps.common.permissions import IsAdmin
 
 class RegisterView(APIView):
     permission_classes = [AllowAny]
+    authentication_classes = [] 
     def post(self, request):
         serializer = RegisterSerializer(data=request.data)
         if serializer.is_valid():
@@ -28,6 +29,7 @@ class RegisterView(APIView):
 
 class LoginView(TokenObtainPairView):
      permission_classes = [AllowAny]
+     authentication_classes = [] 
      serializer_class = LoginSerializer
    
 
