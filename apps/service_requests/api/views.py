@@ -3,7 +3,9 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework import status, serializers
-from apps.common.permissions import IsCustomer, IsServiceProfessional, IsAdmin, IsAdminOrServiceProfessional
+from rest_framework.parsers import MultiPartParser,FormParser
+
+from apps.common.permissions import IsCustomer, IsServiceProfessional, IsAdmin, IsAdminOrServiceProfessional,IsAdminOrCustomer
 from apps.service_requests.services import VisitingChargeCalculatorService, ActivityLogService
 from apps.service_requests.models import ServiceRequest, ServiceRequestDocument
 from .serializers import (
@@ -37,7 +39,9 @@ class ServiceRequestViewSet(ModelViewSet):
     http_method_names = ['get', 'post', 'patch', 'delete']
 
     def get_permissions(self):
-        if self.action in ['list', 'retrieve', 'create', 'partial_update', 'destroy']:
+        if self.action in ['list', 'retrieve',  'partial_update']:
+            return [IsAuthenticated()]
+        if self.action in [ 'create','destroy']:
             return [IsCustomer()]
         if self.action == 'assign':
             return [IsAdmin()]
@@ -270,6 +274,33 @@ class ServiceRequestViewSet(ModelViewSet):
             status=status.HTTP_200_OK
         )
 
+    @action(detail=True, methods=['post'], url_path='start-work')
+    def start_work(self, request, pk=None):
+        instance = self.get_object()
+
+        if instance.status != ServiceRequest.StatusChoices.ASSIGNED:
+            return Response(
+            {'message': 'Can only start work on assigned requests.'},
+            status=status.HTTP_400_BAD_REQUEST
+            )
+
+        old_status = instance.status
+        instance.status = ServiceRequest.StatusChoices.IN_PROGRESS
+        instance.save()
+
+        ActivityLogService.log_activity(
+        service_request=instance,
+        user=request.user,
+        from_status=old_status,
+        to_status=ServiceRequest.StatusChoices.IN_PROGRESS,
+        comment='Professional started working on the request.'
+        )
+
+        return Response(
+        {'message': 'Service request is now in progress.'},
+        status=status.HTTP_200_OK
+        )
+    
     @action(detail=True, methods=['post'])
     def resolve(self, request, pk=None):
         instance = self.get_object()
@@ -400,9 +431,10 @@ class ServiceRequestViewSet(ModelViewSet):
 class ServiceRequestDocumentViewSet(ModelViewSet):
     http_method_names = ['get', 'post', 'delete']
     serializer_class = ServiceRequestDocumentSerializer
+    parser_classes=[MultiPartParser,FormParser]
 
     def get_permissions(self):
-        return [IsCustomer()]
+        return [IsAuthenticated()]
 
     def get_queryset(self):
         return ServiceRequestDocument.objects.filter(
@@ -414,7 +446,7 @@ class ServiceRequestDocumentViewSet(ModelViewSet):
         try:
             service_request = ServiceRequest.objects.get(
                 uuid=self.kwargs['service_request_uuid'],
-                customer=self.request.user
+                # customer=self.request.user
             )
         except ServiceRequest.DoesNotExist:
             raise serializers.ValidationError('Service request not found.')

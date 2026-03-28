@@ -12,6 +12,7 @@ from apps.accounts.models import User
 from apps.common.services.otp_service import OTPService
 from apps.common.services.password_reset_service import PasswordResetService
 from apps.common.services.email_service import EmailService
+from apps.common.permissions import IsAdmin
 
 
 
@@ -224,8 +225,35 @@ class ResetPasswordView(APIView):
             return Response({'message':'Password reset successful.'},status=status.HTTP_200_OK)
         except User.DoesNotExist:
             return Response({'message':'User not found'},status=status.HTTP_404_NOT_FOUND)
-        
+   
+   
 
+class GetAllUsers(APIView):  
+    permission_classes = [IsAdmin]
 
+    def get(self, request):
+        role = request.query_params.get('role')
 
+        users = User.objects.select_related('role').all()
+
+        if role:
+            users = users.filter(role__name=role)
+
+        data = [
+            {
+                'uuid': str(user.uuid),
+                'email': user.email,
+                'first_name': user.first_name,
+                'last_name': user.last_name,
+                'phone_number': user.phone_number,
+                'role': user.role.name if user.role else None,
+                'email_verified': user.email_verified
+            }
+            for user in users
+        ]
+
+        return Response(
+            {'data': data, 'message': 'Users retrieved successfully.'},
+            status=status.HTTP_200_OK
+        )
         

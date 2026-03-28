@@ -2,10 +2,14 @@ from django.contrib import admin
 
 # Register your models here.
 
-from .models import User
+from .models import User,Role
 
 @admin.register(User)
 class UserAdmin(admin.ModelAdmin):
     list_display = ('email','first_name','last_name','is_active','is_staff')
     search_fields = ('email','first_name','last_name','uuid')
     list_filter = ('is_active','is_staff')
+    
+@admin.register(Role)
+class RoleAdmin(admin.ModelAdmin):
+    list_display=('uuid','name','description')

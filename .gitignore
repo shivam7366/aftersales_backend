@@ -33,5 +33,6 @@ htmlcov/
 .pytest_cache/
 
 # 🔒 SECRETS
+secrets/
 *.pem
 *.key
