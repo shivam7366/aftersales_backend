@@ -3,8 +3,7 @@ import os
 
 DEBUG = False 
 
-ALLOWED_HOSTS=['']
-
+ALLOWED_HOSTS = ['54.206.92.55']
 
 DATABASES={
     'default':{
