@@ -3,8 +3,7 @@ import os
 
 DEBUG = False 
 
-ALLOWED_HOSTS = ['54.206.92.55']
-
+ALLOWED_HOSTS = ['54.206.92.55', 'aftersales-staging-api.shivam-gupta.life']
 DATABASES={
     'default':{
         'ENGINE':'django.db.backends.postgresql',
