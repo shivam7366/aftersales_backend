@@ -430,6 +430,7 @@ class ServiceRequestViewSet(ModelViewSet):
 
 class ServiceRequestDocumentViewSet(ModelViewSet):
     http_method_names = ['get', 'post', 'delete']
+    pagination_class = None
     serializer_class = ServiceRequestDocumentSerializer
     parser_classes=[MultiPartParser,FormParser]
 
@@ -440,7 +441,7 @@ class ServiceRequestDocumentViewSet(ModelViewSet):
         return ServiceRequestDocument.objects.filter(
             service_request__uuid=self.kwargs['service_request_uuid'],
             service_request__customer=self.request.user
-        )
+        ).order_by('-created_at')
 
     def perform_create(self, serializer):
         try:
