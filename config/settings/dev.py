@@ -8,7 +8,7 @@ DEFAULT_FROM_EMAIL = 'noreply@aftersales.com'
 
 
 # Frontend URL for password reset link
-FRONTEND_URL = 'http://localhost:3000/forgot-password'
+FRONTEND_URL = 'https://aftersales-two.vercel.app/auth/forgot-password'
 
 STORAGES = {
     "default": {
