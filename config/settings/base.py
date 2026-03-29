@@ -173,8 +173,8 @@ AUTH_USER_MODEL = 'accounts.User'
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:3000',
     'http://127.0.0.1:3000',
-    'https://aftersales.shivam-gupta.life'
-    'https://aftersales-two.vercel.app/auth/login'
+    'https://aftersales.shivam-gupta.life',
+    'https://aftersales-two.vercel.app/auth/login',
 ]
 
 REST_FRAMEWORK = {

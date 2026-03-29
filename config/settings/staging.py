@@ -36,6 +36,7 @@ AWS_S3_FILE_OVERWRITE = False  # don't overwrite files with same name
 AWS_QUERYSTRING_EXPIRE = 3600
 
 
+FRONTEND_URL = 'https://aftersales.shivam-gupta.life/auth/forgot-password'
 
 
 
