@@ -50,14 +50,17 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'corsheaders',
-    'apps.accounts',
-    'apps.common',
-    'apps.devices',
-    'apps.service_requests',
     'rest_framework',
     'rest_framework_simplejwt.token_blacklist',
     'drf_spectacular',
     'storages',
+    
+    'apps.accounts',
+    'apps.common',
+    'apps.devices',
+    'apps.service_requests',
+    'apps.payments',
+    
     ]
 
 MIDDLEWARE = [
@@ -153,6 +156,9 @@ AWS_DEFAULT_ACL = None  # private by default
 AWS_S3_FILE_OVERWRITE = False  # don't overwrite files with same name
 AWS_QUERYSTRING_EXPIRE = 3600  # presigned URL valid for 1 hour
 
+RAZORPAY_KEY_ID = os.environ.get('RAZORPAY_KEY_ID')
+RAZORPAY_KEY_SECRET = os.environ.get('RAZORPAY_KEY_SECRET')
+
 STORAGES = {
     "default": {
         "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
@@ -174,7 +180,7 @@ CORS_ALLOWED_ORIGINS = [
     'http://localhost:3000',
     'http://127.0.0.1:3000',
     'https://aftersales.shivam-gupta.life',
-    'https://aftersales-two.vercel.app/auth/login',
+    'https://aftersales-two.vercel.app',
 ]
 
 REST_FRAMEWORK = {
