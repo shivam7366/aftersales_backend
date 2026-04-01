@@ -26,6 +26,7 @@ urlpatterns = [
     path('api/auth/', include('apps.accounts.api.urls')),
     path('api/devices/', include('apps.devices.api.urls')),
     path('api/service-requests/', include('apps.service_requests.api.urls')),
+    path('api/payments/', include('apps.payments.api.urls')),
     
     #swagger documentation 
       # Swagger
