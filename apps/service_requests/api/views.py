@@ -1,3 +1,5 @@
+from decimal import Decimal, InvalidOperation
+
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import action
@@ -253,18 +255,24 @@ class ServiceRequestViewSet(ModelViewSet):
             )
 
         try:
-            parts_charge = float(parts_charge)
-            if parts_charge < 0:
+            parts_charge_dec = Decimal(str(parts_charge))
+            if parts_charge_dec < 0:
                 raise ValueError
-        except (ValueError, TypeError):
+        except (ValueError, TypeError, InvalidOperation):
             return Response(
                 {'message': 'parts_charge must be a positive number.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        visit = (
+            instance.visit_charge
+            if instance.visit_charge is not None
+            else Decimal('0')
+        )
+
         old_status = instance.status
-        instance.parts_charge = parts_charge
-        instance.total_charge = (instance.visit_charge or 0) + parts_charge
+        instance.parts_charge = parts_charge_dec
+        instance.total_charge = visit + parts_charge_dec
         instance.status = ServiceRequest.StatusChoices.QUOTE_SENT
         instance.save()
 
@@ -273,7 +281,7 @@ class ServiceRequestViewSet(ModelViewSet):
             user=request.user,
             from_status=old_status,
             to_status=ServiceRequest.StatusChoices.QUOTE_SENT,
-            comment=f'Quote sent. Parts charge: {parts_charge}. Total: {instance.total_charge}.'
+            comment=f'Quote sent. Parts charge: {parts_charge_dec}. Total: {instance.total_charge}.'
         )
 
         return Response(
