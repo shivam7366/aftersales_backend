@@ -21,25 +21,6 @@ from .serializers import (
 class ServiceRequestViewSet(ModelViewSet):
     http_method_names = ['get', 'post', 'patch', 'delete']
 
-    from rest_framework.viewsets import ModelViewSet
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.decorators import action
-from rest_framework.response import Response
-from rest_framework import status, serializers
-from apps.common.permissions import IsCustomer, IsServiceProfessional, IsAdmin, IsAdminOrServiceProfessional
-from apps.service_requests.services import VisitingChargeCalculatorService, ActivityLogService
-from apps.service_requests.models import ServiceRequest, ServiceRequestDocument
-from .serializers import (
-    ServiceRequestCreateSerializer,
-    ServiceRequestListSerializer,
-    ServiceRequestDetailSerializer,
-    ServiceRequestDocumentSerializer,
-)
-
-
-class ServiceRequestViewSet(ModelViewSet):
-    http_method_names = ['get', 'post', 'patch', 'delete']
-
     def get_permissions(self):
         if self.action in ['list', 'retrieve',  'partial_update']:
             return [IsAuthenticated()]
@@ -49,10 +30,14 @@ class ServiceRequestViewSet(ModelViewSet):
             return [IsAdmin()]
         if self.action == 'send_quote':
             return [IsAdminOrServiceProfessional()]
-        if self.action in ['approve_quote', 'close']:
+        if self.action in ['approve_quote', 'close', 'reopen']:
             return [IsCustomer()]
         if self.action == 'resolve':
             return [IsServiceProfessional()]
+        if self.action == 'close_by_staff':
+            return [IsAdminOrServiceProfessional()]
+        if self.action == 'reject_request':
+            return [IsAuthenticated()]
         return [IsAuthenticated()]
 
     def get_queryset(self):
@@ -241,10 +226,21 @@ class ServiceRequestViewSet(ModelViewSet):
     def send_quote(self, request, pk=None):
         instance = self.get_object()
 
-        if instance.status != ServiceRequest.StatusChoices.IN_PROGRESS:
+        quote_allowed_statuses = [
+            ServiceRequest.StatusChoices.IN_PROGRESS,
+            ServiceRequest.StatusChoices.QUOTE_SENT,
+            ServiceRequest.StatusChoices.QUOTE_APPROVED,
+            ServiceRequest.StatusChoices.QUOTE_PAYMENT_PENDING,
+            ServiceRequest.StatusChoices.QUOTE_PAYMENT_PAID,
+        ]
+        if instance.status not in quote_allowed_statuses:
             return Response(
-                {'message': 'Can only send quote for in-progress requests.'},
-                status=status.HTTP_400_BAD_REQUEST
+                {
+                    'message': (
+                        'Cannot send or update a quote in the current status.'
+                    ),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         parts_charge = request.data.get('parts_charge')
@@ -391,32 +387,172 @@ class ServiceRequestViewSet(ModelViewSet):
         
     @action(detail=True, methods=['post'], url_path='reject-quote')
     def reject_quote(self, request, pk=None):
-         instance = self.get_object()
+        instance = self.get_object()
 
-         if instance.status != ServiceRequest.StatusChoices.QUOTE_SENT:
+        if instance.status != ServiceRequest.StatusChoices.QUOTE_SENT:
             return Response(
-            {'message': 'No quote to reject.'},
-            status=status.HTTP_400_BAD_REQUEST
+                {'message': 'No quote to reject.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        reason = request.data.get('reason', '')
+
+        old_status = instance.status
+        instance.status = ServiceRequest.StatusChoices.IN_PROGRESS
+        instance.save()
+
+        ActivityLogService.log_activity(
+            service_request=instance,
+            user=request.user,
+            from_status=old_status,
+            to_status=ServiceRequest.StatusChoices.IN_PROGRESS,
+            comment=(
+                f'Quote rejected by customer; returned to in progress. Reason: {reason}'
+                if reason
+                else 'Quote rejected by customer; returned to in progress.'
+            ),
         )
 
-         reason = request.data.get('reason', '')
-
-         old_status = instance.status
-         instance.status = ServiceRequest.StatusChoices.REJECTED
-         instance.save()
-
-         ActivityLogService.log_activity(
-        service_request=instance,
-        user=request.user,
-        from_status=old_status,
-        to_status=ServiceRequest.StatusChoices.REJECTED,
-        comment=f'Quote rejected by customer. Reason: {reason}' if reason else 'Quote rejected by customer.'
+        return Response(
+            {
+                'data': ServiceRequestDetailSerializer(instance).data,
+                'message': 'Quote rejected. The professional can send a new quote.',
+            },
+            status=status.HTTP_200_OK,
         )
 
-         return Response(
-        {'message': 'Quote rejected successfully.'},
-        status=status.HTTP_200_OK
-    )
+    @action(detail=True, methods=['post'], url_path='reject-request')
+    def reject_request(self, request, pk=None):
+        instance = self.get_object()
+        role = request.auth.get('role') if request.auth else None
+
+        if role == 'customer':
+            if instance.customer_id != request.user.uuid:
+                return Response(
+                    {'message': 'Forbidden.'},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+        elif role == 'service_professional':
+            if instance.assigned_to_id != request.user.uuid:
+                return Response(
+                    {'message': 'Forbidden.'},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+        elif role != 'admin':
+            return Response(
+                {'message': 'Forbidden.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if instance.status in (
+            ServiceRequest.StatusChoices.REJECTED,
+            ServiceRequest.StatusChoices.CLOSED,
+        ):
+            return Response(
+                {'message': 'Request is already closed or rejected.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        reason = request.data.get('reason', '')
+        old_status = instance.status
+        instance.status = ServiceRequest.StatusChoices.REJECTED
+        instance.save()
+
+        who = role.replace('_', ' ') if role else 'user'
+        ActivityLogService.log_activity(
+            service_request=instance,
+            user=request.user,
+            from_status=old_status,
+            to_status=ServiceRequest.StatusChoices.REJECTED,
+            comment=(
+                f'Service request rejected by {who}. Reason: {reason}'
+                if reason
+                else f'Service request rejected by {who}.'
+            ),
+        )
+
+        return Response(
+            {
+                'data': ServiceRequestDetailSerializer(instance).data,
+                'message': 'Service request rejected.',
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    @action(detail=True, methods=['post'], url_path='close-by-staff')
+    def close_by_staff(self, request, pk=None):
+        instance = self.get_object()
+
+        allowed = [
+            ServiceRequest.StatusChoices.RESOLVED,
+            ServiceRequest.StatusChoices.QUOTE_PAYMENT_PAID,
+            ServiceRequest.StatusChoices.IN_PROGRESS,
+        ]
+        if instance.status not in allowed:
+            return Response(
+                {
+                    'message': (
+                        'Can only close from resolved, parts paid, or in progress.'
+                    ),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        old_status = instance.status
+        instance.status = ServiceRequest.StatusChoices.CLOSED
+        instance.save()
+
+        ActivityLogService.log_activity(
+            service_request=instance,
+            user=request.user,
+            from_status=old_status,
+            to_status=ServiceRequest.StatusChoices.CLOSED,
+            comment='Service request closed by staff.',
+        )
+
+        return Response(
+            {
+                'data': ServiceRequestDetailSerializer(instance).data,
+                'message': 'Service request closed successfully.',
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    @action(detail=True, methods=['post'], url_path='reopen')
+    def reopen(self, request, pk=None):
+        instance = self.get_object()
+
+        if instance.customer_id != request.user.uuid:
+            return Response(
+                {'message': 'Forbidden.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if instance.status != ServiceRequest.StatusChoices.CLOSED:
+            return Response(
+                {'message': 'Only closed requests can be reopened.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        old_status = instance.status
+        instance.status = ServiceRequest.StatusChoices.IN_PROGRESS
+        instance.save()
+
+        ActivityLogService.log_activity(
+            service_request=instance,
+            user=request.user,
+            from_status=old_status,
+            to_status=ServiceRequest.StatusChoices.IN_PROGRESS,
+            comment='Service request reopened by customer.',
+        )
+
+        return Response(
+            {
+                'data': ServiceRequestDetailSerializer(instance).data,
+                'message': 'Service request reopened and set to in progress.',
+            },
+            status=status.HTTP_200_OK,
+        )
 
     @action(detail=True, methods=['post'])
     def close(self, request, pk=None):

@@ -4,7 +4,13 @@ from apps.payments.models import Payment
 
 class CreateOrderSerializer(serializers.Serializer):
     service_request_uuid = serializers.UUIDField()
-    payment_type = serializers.ChoiceField(choices=Payment.PaymentTypeChoices.choices)
+    # Only visit and parts are collected; total_charge is informational on the request.
+    payment_type = serializers.ChoiceField(
+        choices=[
+            Payment.PaymentTypeChoices.VISIT_CHARGE,
+            Payment.PaymentTypeChoices.PARTS_CHARGE,
+        ]
+    )
 
 
 class VerifyPaymentSerializer(serializers.Serializer):
