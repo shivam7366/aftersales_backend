@@ -7,7 +7,18 @@ from rest_framework_simplejwt.tokens import AccessToken,RefreshToken
 from rest_framework.permissions import AllowAny  
 
 from django.conf import settings
-from .serializers import RegisterSerializer,LoginSerializer,GoogleAuthSerializer,VerifyOTPSerializer,ResendOTPSerializer,ResetPasswordSerializer,PasswordResetRequestSerializer
+from django.db.models import Q
+
+from .serializers import (
+    RegisterSerializer,
+    LoginSerializer,
+    GoogleAuthSerializer,
+    VerifyOTPSerializer,
+    ResendOTPSerializer,
+    ResetPasswordSerializer,
+    PasswordResetRequestSerializer,
+    AdminCreateUserSerializer,
+)
 from apps.accounts.models import User
 from apps.common.services.otp_service import OTPService
 from apps.common.services.password_reset_service import PasswordResetService
@@ -235,11 +246,19 @@ class GetAllUsers(APIView):
 
     def get(self, request):
         role = request.query_params.get('role')
+        search = (request.query_params.get('search') or '').strip()
 
         users = User.objects.select_related('role').all()
 
         if role:
             users = users.filter(role__name=role)
+
+        if search:
+            users = users.filter(
+                Q(email__icontains=search)
+                | Q(first_name__icontains=search)
+                | Q(last_name__icontains=search)
+            )
 
         data = [
             {
@@ -258,4 +277,32 @@ class GetAllUsers(APIView):
             {'data': data, 'message': 'Users retrieved successfully.'},
             status=status.HTTP_200_OK
         )
-        
+
+
+class AdminCreateUserView(APIView):
+    permission_classes = [IsAdmin]
+
+    def post(self, request):
+        serializer = AdminCreateUserSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(
+                {'error': serializer.errors, 'message': 'User creation failed.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        user = serializer.save()
+        user = User.objects.select_related('role').get(pk=user.pk)
+        return Response(
+            {
+                'data': {
+                    'uuid': str(user.uuid),
+                    'email': user.email,
+                    'first_name': user.first_name,
+                    'last_name': user.last_name,
+                    'phone_number': user.phone_number,
+                    'role': user.role.name if user.role else None,
+                    'email_verified': user.email_verified,
+                },
+                'message': 'User created successfully.',
+            },
+            status=status.HTTP_201_CREATED,
+        )

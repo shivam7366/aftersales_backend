@@ -177,10 +177,20 @@ class ServiceRequestViewSet(ModelViewSet):
     def assign(self, request, pk=None):
         instance = self.get_object()
 
-        if instance.status != ServiceRequest.StatusChoices.PENDING:
+        assignable_statuses = [
+            ServiceRequest.StatusChoices.PENDING,
+            ServiceRequest.StatusChoices.VISIT_CHARGE_PENDING,
+            ServiceRequest.StatusChoices.VISIT_CHARGE_PAID,
+        ]
+        if instance.status not in assignable_statuses:
             return Response(
-                {'message': 'Can only assign pending requests.'},
-                status=status.HTTP_400_BAD_REQUEST
+                {
+                    'message': (
+                        'Can only assign requests that are pending, awaiting visit '
+                        'charge, or visit charge paid (not yet assigned).'
+                    ),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         professional_uuid = request.data.get('professional_uuid')

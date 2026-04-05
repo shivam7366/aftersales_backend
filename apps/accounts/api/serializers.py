@@ -147,6 +147,54 @@ class PasswordResetRequestSerializer(serializers.Serializer):
     def validate_email(self,value):
         return value.lower()
     
+class AdminCreateUserSerializer(serializers.Serializer):
+    """Admin-only: create customer or service_professional accounts."""
+
+    email = serializers.EmailField()
+    password = serializers.CharField(write_only=True, min_length=8)
+    first_name = serializers.CharField()
+    last_name = serializers.CharField()
+    phone_number = serializers.CharField(
+        required=False, allow_blank=True, allow_null=True, max_length=15
+    )
+    role = serializers.ChoiceField(choices=['customer', 'service_professional'])
+
+    def validate_email(self, value):
+        normalized = value.lower()
+        if User.objects.filter(email=normalized).exists():
+            raise serializers.ValidationError('A user with this email already exists.')
+        return normalized
+
+    def create(self, validated_data):
+        role = Role.objects.get(name=validated_data.pop('role'))
+        password = validated_data.pop('password')
+        phone = validated_data.pop('phone_number', None)
+        if phone == '':
+            phone = None
+        user = User.objects.create_user(
+            email=validated_data['email'],
+            password=password,
+            first_name=validated_data['first_name'],
+            last_name=validated_data['last_name'],
+            phone_number=phone,
+            role=role,
+        )
+        user.email_verified = True
+        user.save(update_fields=['email_verified'])
+        return user
+
+    def to_representation(self, instance):
+        return {
+            'uuid': str(instance.uuid),
+            'email': instance.email,
+            'first_name': instance.first_name,
+            'last_name': instance.last_name,
+            'phone_number': instance.phone_number,
+            'role': instance.role.name if instance.role else None,
+            'email_verified': instance.email_verified,
+        }
+
+
 class ResetPasswordSerializer(serializers.Serializer):
     token=serializers.CharField(required=True)
     new_password=serializers.CharField(required=True)
