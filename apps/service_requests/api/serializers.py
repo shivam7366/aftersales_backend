@@ -1,6 +1,31 @@
 from datetime import date
 from rest_framework import serializers
-from apps.service_requests.models import ServiceRequest, ServiceRequestDocument
+from apps.service_requests.models import (
+    ServiceRequest,
+    ServiceRequestDocument,
+    ServiceRequestActivity,
+)
+
+
+class ServiceRequestActivitySerializer(serializers.ModelSerializer):
+    user_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ServiceRequestActivity
+        fields = [
+            'uuid',
+            'user_name',
+            'from_status',
+            'to_status',
+            'comment',
+            'created_at',
+        ]
+
+    def get_user_name(self, obj):
+        if obj.user:
+            name = f'{obj.user.first_name} {obj.user.last_name}'.strip()
+            return name or obj.user.email
+        return 'System'
 
 
 class ServiceRequestCreateSerializer(serializers.ModelSerializer):
@@ -58,6 +83,7 @@ class ServiceRequestDetailSerializer(serializers.ModelSerializer):
     device_brand = serializers.CharField(source='device.brand', read_only=True)
     device_serial = serializers.CharField(source='device.serial_number', read_only=True)
     assigned_to_name = serializers.SerializerMethodField()
+    activities = serializers.SerializerMethodField()
 
     class Meta:
         model = ServiceRequest
@@ -78,6 +104,7 @@ class ServiceRequestDetailSerializer(serializers.ModelSerializer):
             'preferred_visit_date',
             'assigned_to',
             'assigned_to_name',
+            'activities',
             'created_at',
             'updated_at',
         ]
@@ -86,6 +113,10 @@ class ServiceRequestDetailSerializer(serializers.ModelSerializer):
         if obj.assigned_to:
             return f'{obj.assigned_to.first_name} {obj.assigned_to.last_name}'
         return None
+
+    def get_activities(self, obj):
+        qs = obj.activities.select_related('user').order_by('created_at')
+        return ServiceRequestActivitySerializer(qs, many=True).data
     
 class ServiceRequestDocumentSerializer(serializers.ModelSerializer):
     class Meta:

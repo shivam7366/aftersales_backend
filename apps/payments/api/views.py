@@ -8,6 +8,7 @@ from apps.payments.models import Payment
 from apps.payments.services import RazorpayService
 from apps.common.permissions import IsCustomer
 from apps.service_requests.models import ServiceRequest
+from apps.service_requests.services import ActivityLogService
 
 
 class CreateOrderView(APIView):
@@ -24,6 +25,7 @@ class CreateOrderView(APIView):
         allowed_statuses = [
     ServiceRequest.StatusChoices.PENDING,
     ServiceRequest.StatusChoices.VISIT_CHARGE_PENDING,
+    ServiceRequest.StatusChoices.QUOTE_APPROVED,
     ServiceRequest.StatusChoices.QUOTE_PAYMENT_PENDING,
 ]
 
@@ -85,13 +87,35 @@ class VerifyPaymentView(APIView):
         if not is_verified:
             return Response({'error': 'Invalid razorpay signature.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        payment.razorpay_payment_id=razorpay_payment_id
-        payment.razorpay_signature=razorpay_signature
-        payment.status=Payment.PaymentStatusChoices.COMPLETED
-        
+        payment.razorpay_payment_id = razorpay_payment_id
+        payment.razorpay_signature = razorpay_signature
+        payment.status = Payment.PaymentStatusChoices.COMPLETED
+
+        old_status = service_request.status
+
         payment.save()
-        
-        service_request.payment_status='completed'
-        service_request.status=ServiceRequest.StatusChoices.VISIT_CHARGE_PAID if payment.payment_type==Payment.PaymentTypeChoices.VISIT_CHARGE else ServiceRequest.StatusChoices.QUOTE_PAYMENT_PAID
+
+        service_request.payment_status = 'completed'
+        new_status = (
+            ServiceRequest.StatusChoices.VISIT_CHARGE_PAID
+            if payment.payment_type == Payment.PaymentTypeChoices.VISIT_CHARGE
+            else ServiceRequest.StatusChoices.QUOTE_PAYMENT_PAID
+        )
+        service_request.status = new_status
         service_request.save()
+
+        type_label = dict(Payment.PaymentTypeChoices.choices).get(
+            payment.payment_type, payment.payment_type
+        )
+        ActivityLogService.log_activity(
+            service_request=service_request,
+            user=request.user,
+            from_status=old_status,
+            to_status=new_status,
+            comment=(
+                f'Payment completed ({type_label}): ₹{payment.amount} via Razorpay. '
+                f'Transaction verified.'
+            ),
+        )
+
         return Response(PaymentSerializer(payment).data, status=status.HTTP_200_OK)
