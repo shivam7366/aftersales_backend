@@ -80,7 +80,7 @@ class VerifyPaymentView(APIView):
         #     return Response({'error': 'Invalid razorpay payment id.'}, status=status.HTTP_400_BAD_REQUEST)
             
         razorpay_service=RazorpayService()
-        is_verified=razorpay_service.verify_signature(razorpay_order_id,razorpay_payment_id,razorpay_signature)
+        is_verified=razorpay_service.verfiy_signature(razorpay_order_id,razorpay_payment_id,razorpay_signature)
         if not is_verified:
             return Response({'error': 'Invalid razorpay signature.'}, status=status.HTTP_400_BAD_REQUEST)
 
