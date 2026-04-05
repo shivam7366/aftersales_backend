@@ -21,7 +21,7 @@ class CreateOrderView(APIView):
 
         service_request=get_object_or_404(ServiceRequest, uuid=service_request_uuid, customer=request.user)
 
-        if service_request.status!=ServiceRequest.StatusChoices.PENDING:
+        if service_request.status!=ServiceRequest.StatusChoices.PENDING or service_request.status!=ServiceRequest.StatusChoices.VISIT_CHARGE_PENDING or service_request.status!=ServiceRequest.StatusChoices.QUOTE_PAYMENT_PENDING:
             return Response({'error': 'Service request is not pending.'}, status=status.HTTP_400_BAD_REQUEST)
 
         if service_request.payment_status!=Payment.PaymentStatusChoices.PENDING:
