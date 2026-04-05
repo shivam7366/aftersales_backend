@@ -46,7 +46,7 @@ class ServiceRequest(TimeStampMixin):
     parts_charge = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     total_charge = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     preferred_visit_date = models.DateField(null=True, blank=True)
-    payment_status = models.CharField(max_length=20, choices=[('pending','Pending'),('completed','Completed')], default='pending')
+    # payment_status = models.CharField(max_length=20, choices=[('pending','Pending'),('completed','Completed')], default='pending')
 
     class Meta:
         ordering = ['-created_at']

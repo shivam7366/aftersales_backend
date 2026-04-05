@@ -35,8 +35,8 @@ class CreateOrderView(APIView):
         status=status.HTTP_400_BAD_REQUEST
     )
 
-        if service_request.payment_status!=Payment.PaymentStatusChoices.PENDING:
-            return Response({'error': 'Payment is already completed.'}, status=status.HTTP_400_BAD_REQUEST)
+        # if service_request.payment_status!=Payment.PaymentStatusChoices.PENDING:
+        #     return Response({'error': 'Payment is already completed.'}, status=status.HTTP_400_BAD_REQUEST)
 
         amount=service_request.visit_charge if payment_type==Payment.PaymentTypeChoices.VISIT_CHARGE else service_request.total_charge
 
@@ -95,7 +95,6 @@ class VerifyPaymentView(APIView):
 
         payment.save()
 
-        service_request.payment_status = 'completed'
         new_status = (
             ServiceRequest.StatusChoices.VISIT_CHARGE_PAID
             if payment.payment_type == Payment.PaymentTypeChoices.VISIT_CHARGE
