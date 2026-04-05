@@ -69,6 +69,7 @@ class VerifyPaymentView(APIView):
         payment_uuid=serializer.validated_data['payment_uuid']
         
         payment=get_object_or_404(Payment, uuid=payment_uuid, service_request__customer=request.user)
+        service_request=get_object_or_404(ServiceRequest, uuid=payment.service_request.uuid, customer=request.user)
 
         if payment.status!=Payment.PaymentStatusChoices.PENDING:
             return Response({'error': 'Payment is not pending.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -87,5 +88,10 @@ class VerifyPaymentView(APIView):
         payment.razorpay_payment_id=razorpay_payment_id
         payment.razorpay_signature=razorpay_signature
         payment.status=Payment.PaymentStatusChoices.COMPLETED
+        
         payment.save()
+        
+        service_request.payment_status='completed'
+        service_request.status=ServiceRequest.StatusChoices.VISIT_CHARGE_PAID if payment.payment_type==Payment.PaymentTypeChoices.VISIT_CHARGE else ServiceRequest.StatusChoices.QUOTE_PAYMENT_PAID
+        service_request.save()
         return Response(PaymentSerializer(payment).data, status=status.HTTP_200_OK)
